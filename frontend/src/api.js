@@ -34,6 +34,8 @@ export const api = {
     request('/envelopes', { method: 'POST', body: JSON.stringify(body) }),
   updateEnvelope: (id, body) =>
     request(`/envelopes/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteEnvelope: (id) =>
+    request(`/envelopes/${id}`, { method: 'DELETE' }),
   createTransaction: (body) =>
     request('/transactions', { method: 'POST', body: JSON.stringify(body) }),
   updateTransaction: (id, body) =>

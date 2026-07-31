@@ -49,8 +49,9 @@ Or paste each migration file manually if you prefer not to use the CLI.
 | File | Purpose |
 |------|---------|
 | `0002_transaction_notes.sql` | Adds optional `notes` column on `transactions` |
+| `0003_envelope_soft_delete.sql` | Adds `deleted_at` for soft-deleting envelopes |
 
-Run `0002` in the SQL Editor after `0001` before deploying an API build that writes notes.
+Run `0002` and `0003` in the SQL Editor (in order) after `0001` before deploying builds that depend on them.
 
 ---
 

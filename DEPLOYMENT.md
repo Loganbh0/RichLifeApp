@@ -4,6 +4,7 @@
 
 1. **Migrations** — Apply any new `supabase/migrations/000N_*.sql` in Supabase (SQL Editor, in order). See [SUPABASE.md](SUPABASE.md).
    - Before deploying notes / envelope detail: run [`0002_transaction_notes.sql`](supabase/migrations/0002_transaction_notes.sql) if not already applied.
+   - Before deploying envelope delete: run [`0003_envelope_soft_delete.sql`](supabase/migrations/0003_envelope_soft_delete.sql).
 2. **Backend** — Push to `main` (Render auto-deploys if connected). Confirm:
    ```bash
    curl https://<your-api>.onrender.com/health

@@ -49,6 +49,7 @@ export default function EnvelopeDetailPage() {
   const [categoryId, setCategoryId] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setError('');
@@ -106,6 +107,27 @@ export default function EnvelopeDetailPage() {
       setError(err.message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (detail?.envelope?.isUnallocated) return;
+    const bal = Number(detail.envelope.balance);
+    const confirmMsg =
+      bal > 0
+        ? `Delete “${detail.envelope.name}”? ${formatMoney(bal)} will move to Unallocated.`
+        : `Delete “${detail.envelope.name}”?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setDeleting(true);
+    setError('');
+    try {
+      await api.deleteEnvelope(id);
+      navigate('/');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -231,9 +253,25 @@ export default function EnvelopeDetailPage() {
                 </div>
               </>
             )}
-            <button type="submit" className="submit-btn" disabled={saving}>
-              {saving ? 'Saving…' : 'Save changes'}
-            </button>
+            <div className="detail-edit-actions">
+              {!isUnallocated && (
+                <button
+                  type="button"
+                  className="submit-btn submit-btn--danger"
+                  onClick={handleDelete}
+                  disabled={saving || deleting}
+                >
+                  {deleting ? 'Deleting…' : 'Delete'}
+                </button>
+              )}
+              <button
+                type="submit"
+                className="submit-btn"
+                disabled={saving || deleting}
+              >
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
           </form>
         </section>
       )}

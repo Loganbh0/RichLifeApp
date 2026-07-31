@@ -59,6 +59,7 @@ export async function getBudgetOverview() {
     query(
       `SELECT id, category_id, name, balance, target, sort_order, is_unallocated, created_at
        FROM envelopes
+       WHERE deleted_at IS NULL
        ORDER BY sort_order ASC, name ASC`
     ),
   ]);
@@ -120,11 +121,11 @@ export async function createEnvelope({ name, target = 0, categoryId = null, sort
 
 export async function updateEnvelope(id, patch) {
   const { rows: existing } = await query(
-    `SELECT id, category_id, name, balance, target, sort_order, is_unallocated, created_at
+    `SELECT id, category_id, name, balance, target, sort_order, is_unallocated, created_at, deleted_at
      FROM envelopes WHERE id = $1`,
     [id]
   );
-  if (!existing[0]) {
+  if (!existing[0] || existing[0].deleted_at) {
     throw httpError(404, 'Envelope not found');
   }
   if (existing[0].is_unallocated) {
@@ -173,15 +174,89 @@ export async function updateEnvelope(id, patch) {
   return mapEnvelope(rows[0]);
 }
 
+export async function deleteEnvelope(id) {
+  return withTransaction(async (client) => {
+    // Peek without lock first for cheap guards, then lock in UUID order with Unallocated
+    const { rows: peek } = await client.query(
+      `SELECT id, name, balance, is_unallocated, deleted_at
+       FROM envelopes WHERE id = $1`,
+      [id]
+    );
+    if (!peek[0] || peek[0].deleted_at) {
+      throw httpError(404, 'Envelope not found');
+    }
+    if (peek[0].is_unallocated) {
+      throw httpError(400, 'Cannot delete Unallocated');
+    }
+
+    const balance = Number(peek[0].balance);
+    if (balance < 0) {
+      throw httpError(
+        400,
+        'Envelope is overdrawn; resolve the negative balance before deleting'
+      );
+    }
+
+    const { rows: unallocRows } = await client.query(
+      `SELECT id FROM envelopes
+       WHERE is_unallocated = true AND deleted_at IS NULL`
+    );
+    if (!unallocRows[0]) {
+      throw httpError(500, 'Unallocated envelope missing');
+    }
+    const unallocatedId = unallocRows[0].id;
+
+    const firstId = id < unallocatedId ? id : unallocatedId;
+    const secondId = id < unallocatedId ? unallocatedId : id;
+    const first = await lockEnvelope(client, firstId);
+    const second = await lockEnvelope(client, secondId);
+    const env = id === first.id ? first : second;
+    const unallocated = unallocatedId === first.id ? first : second;
+
+    const liveBalance = Number(env.balance);
+    if (liveBalance < 0) {
+      throw httpError(
+        400,
+        'Envelope is overdrawn; resolve the negative balance before deleting'
+      );
+    }
+
+    if (liveBalance > 0) {
+      const amount = Number(liveBalance.toFixed(2));
+      const note = `Deleted ${env.name}`;
+
+      await setBalance(client, env.id, 0);
+      await setBalance(
+        client,
+        unallocated.id,
+        Number(unallocated.balance) + amount
+      );
+
+      await client.query(
+        `INSERT INTO transactions (type, amount, from_envelope_id, to_envelope_id, notes)
+         VALUES ('transfer', $1, $2, $3, $4)`,
+        [amount, env.id, unallocated.id, note]
+      );
+    }
+
+    await client.query(
+      `UPDATE envelopes SET deleted_at = now(), balance = 0 WHERE id = $1`,
+      [env.id]
+    );
+
+    return { ok: true };
+  });
+}
+
 async function lockEnvelope(client, id) {
   const { rows } = await client.query(
-    `SELECT id, category_id, name, balance, target, sort_order, is_unallocated, created_at
+    `SELECT id, category_id, name, balance, target, sort_order, is_unallocated, created_at, deleted_at
      FROM envelopes
      WHERE id = $1
      FOR UPDATE`,
     [id]
   );
-  if (!rows[0]) {
+  if (!rows[0] || rows[0].deleted_at) {
     throw httpError(404, 'Envelope not found');
   }
   return rows[0];
@@ -220,13 +295,13 @@ function normalizeNotes(notes) {
 export async function getEnvelopeDetail(id) {
   const { rows } = await query(
     `SELECT e.id, e.category_id, e.name, e.balance, e.target, e.sort_order,
-            e.is_unallocated, e.created_at, c.name AS category_name
+            e.is_unallocated, e.created_at, e.deleted_at, c.name AS category_name
      FROM envelopes e
      LEFT JOIN categories c ON c.id = e.category_id
      WHERE e.id = $1`,
     [id]
   );
-  if (!rows[0]) {
+  if (!rows[0] || rows[0].deleted_at) {
     throw httpError(404, 'Envelope not found');
   }
 

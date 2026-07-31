@@ -72,6 +72,14 @@ api.patch(
   })
 );
 
+api.delete(
+  '/envelopes/:id',
+  asyncHandler(async (req, res) => {
+    await queries.deleteEnvelope(req.params.id);
+    res.status(204).end();
+  })
+);
+
 api.get(
   '/categories',
   asyncHandler(async (_req, res) => {

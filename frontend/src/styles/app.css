@@ -533,6 +533,17 @@
   font-size: 1.1rem;
 }
 
+.detail-edit-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.detail-edit-actions .submit-btn {
+  flex: 1;
+  margin-top: 0;
+}
+
 .detail-txs {
   margin-top: 8px;
 }
