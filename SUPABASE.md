@@ -44,6 +44,14 @@ Or paste each migration file manually if you prefer not to use the CLI.
 | RLS | Enabled on all tables with **no** public policies |
 | Seed | Sample categories, Unallocated, starter Monthly envelopes |
 
+### Later migrations
+
+| File | Purpose |
+|------|---------|
+| `0002_transaction_notes.sql` | Adds optional `notes` column on `transactions` |
+
+Run `0002` in the SQL Editor after `0001` before deploying an API build that writes notes.
+
 ---
 
 ## 3. Copy the pooler connection string

@@ -325,7 +325,8 @@
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
   border: 1px solid var(--border);
   background: var(--surface);
@@ -336,8 +337,15 @@
   outline: none;
 }
 
+.field textarea {
+  resize: vertical;
+  min-height: 88px;
+  line-height: 1.4;
+}
+
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.field textarea:focus {
   border-color: var(--text);
 }
 
@@ -452,4 +460,121 @@
   color: var(--text-muted);
   font-weight: 600;
   font-size: 0.85rem;
+}
+
+.unallocated-card--link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.unallocated-card--link:active {
+  transform: scale(0.995);
+}
+
+.envelope-row {
+  display: block;
+  text-decoration: none;
+}
+
+.detail-hero {
+  margin-bottom: 14px;
+}
+
+.detail-hero__meta {
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.detail-hero__title {
+  margin: 0 0 12px;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.detail-hero__balance {
+  margin-bottom: 4px;
+}
+
+.detail-hero__target {
+  margin-bottom: 12px;
+}
+
+.detail-hero__progress {
+  margin-bottom: 16px;
+}
+
+.detail-edit-toggle {
+  border: none;
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.detail-edit {
+  margin-bottom: 14px;
+}
+
+.detail-edit h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+.detail-txs {
+  margin-top: 8px;
+}
+
+.tx-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tx-card {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+}
+
+.tx-card__main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tx-card__label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.tx-card__date {
+  margin-top: 4px;
+  font-size: 0.8rem;
+}
+
+.tx-card__amount {
+  font-weight: 700;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.tx-card__notes {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.4;
 }

@@ -12,7 +12,6 @@ export default function EnvelopesPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [manageOpen, setManageOpen] = useState(false);
-  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     setError('');
@@ -34,19 +33,8 @@ export default function EnvelopesPage() {
     load();
   }, [load]);
 
-  function openCreate() {
-    setEditing(null);
-    setManageOpen(true);
-  }
-
-  function openEdit(envelope) {
-    setEditing(envelope);
-    setManageOpen(true);
-  }
-
   async function handleSaved() {
     setManageOpen(false);
-    setEditing(null);
     await load();
   }
 
@@ -59,9 +47,15 @@ export default function EnvelopesPage() {
             type="button"
             className="icon-btn"
             aria-label="Add envelope"
-            onClick={openCreate}
+            onClick={() => setManageOpen(true)}
             title="Add envelope"
-            style={{ width: 'auto', padding: '0 14px', borderRadius: 20, fontSize: '0.85rem', fontWeight: 600 }}
+            style={{
+              width: 'auto',
+              padding: '0 14px',
+              borderRadius: 20,
+              fontSize: '0.85rem',
+              fontWeight: 600,
+            }}
           >
             + Envelope
           </button>
@@ -79,11 +73,7 @@ export default function EnvelopesPage() {
           <TotalBalanceCard totalBalance={data.totalBalance} />
           <UnallocatedCard envelope={data.unallocated} />
           {data.categories.map((cat) => (
-            <CategorySection
-              key={cat.id ?? 'other'}
-              category={cat}
-              onEditEnvelope={openEdit}
-            />
+            <CategorySection key={cat.id ?? 'other'} category={cat} />
           ))}
         </div>
       )}
@@ -92,12 +82,9 @@ export default function EnvelopesPage() {
 
       {manageOpen && (
         <ManageModal
-          envelope={editing}
+          envelope={null}
           categories={categories}
-          onClose={() => {
-            setManageOpen(false);
-            setEditing(null);
-          }}
+          onClose={() => setManageOpen(false)}
           onSaved={handleSaved}
         />
       )}

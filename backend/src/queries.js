@@ -195,12 +195,79 @@ function parseAmount(amount) {
   return Number(n.toFixed(2));
 }
 
+function mapTransaction(row) {
+  return {
+    id: row.id,
+    type: row.type,
+    amount: money(row.amount),
+    envelopeId: row.envelope_id,
+    fromEnvelopeId: row.from_envelope_id,
+    toEnvelopeId: row.to_envelope_id,
+    notes: row.notes || null,
+    createdAt: row.created_at,
+    fromEnvelopeName: row.from_envelope_name || null,
+    toEnvelopeName: row.to_envelope_name || null,
+    envelopeName: row.envelope_name || null,
+  };
+}
+
+function normalizeNotes(notes) {
+  if (notes === undefined || notes === null) return null;
+  const trimmed = String(notes).trim();
+  return trimmed || null;
+}
+
+export async function getEnvelopeDetail(id) {
+  const { rows } = await query(
+    `SELECT e.id, e.category_id, e.name, e.balance, e.target, e.sort_order,
+            e.is_unallocated, e.created_at, c.name AS category_name
+     FROM envelopes e
+     LEFT JOIN categories c ON c.id = e.category_id
+     WHERE e.id = $1`,
+    [id]
+  );
+  if (!rows[0]) {
+    throw httpError(404, 'Envelope not found');
+  }
+
+  const row = rows[0];
+  const envelope = {
+    ...mapEnvelope(row),
+    categoryName: row.is_unallocated
+      ? null
+      : row.category_name || 'Other',
+  };
+
+  const { rows: txRows } = await query(
+    `SELECT t.id, t.type, t.amount, t.envelope_id, t.from_envelope_id, t.to_envelope_id,
+            t.notes, t.created_at,
+            env.name AS envelope_name,
+            f.name AS from_envelope_name,
+            dest.name AS to_envelope_name
+     FROM transactions t
+     LEFT JOIN envelopes env ON env.id = t.envelope_id
+     LEFT JOIN envelopes f ON f.id = t.from_envelope_id
+     LEFT JOIN envelopes dest ON dest.id = t.to_envelope_id
+     WHERE t.envelope_id = $1
+        OR t.from_envelope_id = $1
+        OR t.to_envelope_id = $1
+     ORDER BY t.created_at DESC`,
+    [id]
+  );
+
+  return {
+    envelope,
+    transactions: txRows.map(mapTransaction),
+  };
+}
+
 export async function createTransaction(body) {
   const type = body.type;
   if (!['income', 'expense', 'transfer'].includes(type)) {
     throw httpError(400, 'Type must be income, expense, or transfer');
   }
   const amount = parseAmount(body.amount);
+  const notes = normalizeNotes(body.notes);
 
   return withTransaction(async (client) => {
     if (type === 'income' || type === 'expense') {
@@ -227,21 +294,13 @@ export async function createTransaction(body) {
       );
 
       const { rows } = await client.query(
-        `INSERT INTO transactions (type, amount, envelope_id)
-         VALUES ($1, $2, $3)
-         RETURNING id, type, amount, envelope_id, from_envelope_id, to_envelope_id, created_at`,
-        [type, amount, env.id]
+        `INSERT INTO transactions (type, amount, envelope_id, notes)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, type, amount, envelope_id, from_envelope_id, to_envelope_id, notes, created_at`,
+        [type, amount, env.id, notes]
       );
 
-      return {
-        id: rows[0].id,
-        type: rows[0].type,
-        amount: money(rows[0].amount),
-        envelopeId: rows[0].envelope_id,
-        fromEnvelopeId: rows[0].from_envelope_id,
-        toEnvelopeId: rows[0].to_envelope_id,
-        createdAt: rows[0].created_at,
-      };
+      return mapTransaction(rows[0]);
     }
 
     // transfer
@@ -276,39 +335,23 @@ export async function createTransaction(body) {
     ]);
 
     const { rows } = await client.query(
-      `INSERT INTO transactions (type, amount, from_envelope_id, to_envelope_id)
-       VALUES ('transfer', $1, $2, $3)
-       RETURNING id, type, amount, envelope_id, from_envelope_id, to_envelope_id, created_at`,
-      [amount, from.id, to.id]
+      `INSERT INTO transactions (type, amount, from_envelope_id, to_envelope_id, notes)
+       VALUES ('transfer', $1, $2, $3, $4)
+       RETURNING id, type, amount, envelope_id, from_envelope_id, to_envelope_id, notes, created_at`,
+      [amount, from.id, to.id, notes]
     );
 
-    return {
-      id: rows[0].id,
-      type: rows[0].type,
-      amount: money(rows[0].amount),
-      envelopeId: rows[0].envelope_id,
-      fromEnvelopeId: rows[0].from_envelope_id,
-      toEnvelopeId: rows[0].to_envelope_id,
-      createdAt: rows[0].created_at,
-    };
+    return mapTransaction(rows[0]);
   });
 }
 
 export async function listTransactions(limit = 50) {
   const { rows } = await query(
-    `SELECT id, type, amount, envelope_id, from_envelope_id, to_envelope_id, created_at
+    `SELECT id, type, amount, envelope_id, from_envelope_id, to_envelope_id, notes, created_at
      FROM transactions
      ORDER BY created_at DESC
      LIMIT $1`,
     [Math.min(Number(limit) || 50, 200)]
   );
-  return rows.map((r) => ({
-    id: r.id,
-    type: r.type,
-    amount: money(r.amount),
-    envelopeId: r.envelope_id,
-    fromEnvelopeId: r.from_envelope_id,
-    toEnvelopeId: r.to_envelope_id,
-    createdAt: r.created_at,
-  }));
+  return rows.map(mapTransaction);
 }

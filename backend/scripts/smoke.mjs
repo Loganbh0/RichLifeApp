@@ -65,8 +65,16 @@ async function main() {
       type: 'expense',
       amount: 10,
       envelopeId: firstEnvelope.id,
+      notes: 'Smoke test purchase',
     }),
   });
+
+  console.log(`Smoke: GET /envelopes/${firstEnvelope.id}`);
+  const detail = await request(`/envelopes/${firstEnvelope.id}`);
+  if (!detail.envelope || !Array.isArray(detail.transactions)) {
+    throw new Error('Envelope detail missing envelope or transactions');
+  }
+  console.log('  txs:', detail.transactions.length);
 
   const after = await request('/envelopes');
   console.log('After:');

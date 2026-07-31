@@ -1,7 +1,7 @@
 import { formatMoney } from '../utils/money.js';
 import EnvelopeRow from './EnvelopeRow.jsx';
 
-export default function CategorySection({ category, onEditEnvelope }) {
+export default function CategorySection({ category }) {
   if (!category.envelopes?.length) return null;
 
   return (
@@ -12,7 +12,7 @@ export default function CategorySection({ category, onEditEnvelope }) {
       </div>
       <div className="envelope-list">
         {category.envelopes.map((env) => (
-          <EnvelopeRow key={env.id} envelope={env} onEdit={onEditEnvelope} />
+          <EnvelopeRow key={env.id} envelope={env} />
         ))}
       </div>
     </section>

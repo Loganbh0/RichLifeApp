@@ -26,6 +26,7 @@ async function request(path, options = {}) {
 
 export const api = {
   getBudget: () => request('/envelopes'),
+  getEnvelope: (id) => request(`/envelopes/${id}`),
   listCategories: () => request('/categories'),
   createCategory: (body) =>
     request('/categories', { method: 'POST', body: JSON.stringify(body) }),

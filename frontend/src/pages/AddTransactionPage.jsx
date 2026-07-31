@@ -12,6 +12,7 @@ export default function AddTransactionPage() {
   const navigate = useNavigate();
   const [type, setType] = useState('income');
   const [amount, setAmount] = useState('');
+  const [notes, setNotes] = useState('');
   const [envelopeId, setEnvelopeId] = useState('');
   const [fromEnvelopeId, setFromEnvelopeId] = useState('');
   const [toEnvelopeId, setToEnvelopeId] = useState('');
@@ -53,6 +54,9 @@ export default function AddTransactionPage() {
         type,
         amount: Number(amount),
       };
+      const trimmedNotes = notes.trim();
+      if (trimmedNotes) payload.notes = trimmedNotes;
+
       if (type === 'income' || type === 'expense') {
         payload.envelopeId = envelopeId;
       } else {
@@ -171,6 +175,17 @@ export default function AddTransactionPage() {
             </div>
           </>
         )}
+
+        <div className="field">
+          <label htmlFor="notes">Notes (optional)</label>
+          <textarea
+            id="notes"
+            rows={3}
+            placeholder="Costco, paycheck, rent…"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </div>
 
         <button
           type="submit"

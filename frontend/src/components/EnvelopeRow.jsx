@@ -1,16 +1,16 @@
+import { Link } from 'react-router-dom';
 import { formatMoney } from '../utils/money.js';
 import ProgressBar from './ProgressBar.jsx';
 
-export default function EnvelopeRow({ envelope, onEdit }) {
+export default function EnvelopeRow({ envelope }) {
   const bal = Number(envelope.balance);
   const neg = bal < 0;
 
   return (
-    <button
-      type="button"
+    <Link
+      to={`/envelopes/${envelope.id}`}
       className="envelope-row"
-      onClick={() => onEdit?.(envelope)}
-      aria-label={`Edit ${envelope.name}`}
+      aria-label={`Open ${envelope.name}`}
     >
       <div className="top">
         <div className="title">{envelope.name}</div>
@@ -24,6 +24,6 @@ export default function EnvelopeRow({ envelope, onEdit }) {
         </div>
       </div>
       <ProgressBar balance={envelope.balance} target={envelope.target} />
-    </button>
+    </Link>
   );
 }

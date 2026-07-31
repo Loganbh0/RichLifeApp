@@ -38,6 +38,14 @@ api.get(
   })
 );
 
+api.get(
+  '/envelopes/:id',
+  asyncHandler(async (req, res) => {
+    const detail = await queries.getEnvelopeDetail(req.params.id);
+    res.json(detail);
+  })
+);
+
 api.post(
   '/envelopes',
   asyncHandler(async (req, res) => {
