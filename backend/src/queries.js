@@ -355,3 +355,152 @@ export async function listTransactions(limit = 50) {
   );
   return rows.map(mapTransaction);
 }
+
+async function setBalance(client, id, balance) {
+  await client.query(`UPDATE envelopes SET balance = $2 WHERE id = $1`, [
+    id,
+    balance,
+  ]);
+}
+
+function assertUnallocatedOk(env, nextBalance) {
+  if (env.is_unallocated && nextBalance < -0.001) {
+    throw httpError(400, 'Unallocated cannot go negative');
+  }
+}
+
+/** Reverse a stored transaction's effect on locked envelope rows (map by id). */
+async function reverseTxEffect(client, tx, envelopesById) {
+  const amount = Number(tx.amount);
+  if (tx.type === 'income') {
+    const env = envelopesById.get(tx.envelope_id);
+    const next = Number(env.balance) - amount;
+    assertUnallocatedOk(env, next);
+    env.balance = next;
+    await setBalance(client, env.id, next);
+    return;
+  }
+  if (tx.type === 'expense') {
+    const env = envelopesById.get(tx.envelope_id);
+    const next = Number(env.balance) + amount;
+    env.balance = next;
+    await setBalance(client, env.id, next);
+    return;
+  }
+  // transfer
+  const from = envelopesById.get(tx.from_envelope_id);
+  const to = envelopesById.get(tx.to_envelope_id);
+  const fromNext = Number(from.balance) + amount;
+  const toNext = Number(to.balance) - amount;
+  assertUnallocatedOk(to, toNext);
+  from.balance = fromNext;
+  to.balance = toNext;
+  await setBalance(client, from.id, fromNext);
+  await setBalance(client, to.id, toNext);
+}
+
+async function applyTxEffect(client, type, amount, envelopeId, fromId, toId, envelopesById) {
+  if (type === 'income') {
+    const env = envelopesById.get(envelopeId);
+    const next = Number(env.balance) + amount;
+    env.balance = next;
+    await setBalance(client, env.id, next);
+    return;
+  }
+  if (type === 'expense') {
+    const env = envelopesById.get(envelopeId);
+    const next = Number(env.balance) - amount;
+    assertUnallocatedOk(env, next);
+    env.balance = next;
+    await setBalance(client, env.id, next);
+    return;
+  }
+  const from = envelopesById.get(fromId);
+  const to = envelopesById.get(toId);
+  const fromNext = Number(from.balance) - amount;
+  const toNext = Number(to.balance) + amount;
+  assertUnallocatedOk(from, fromNext);
+  from.balance = fromNext;
+  to.balance = toNext;
+  await setBalance(client, from.id, fromNext);
+  await setBalance(client, to.id, toNext);
+}
+
+async function lockEnvelopesForTx(client, tx) {
+  const ids = new Set();
+  if (tx.envelope_id) ids.add(tx.envelope_id);
+  if (tx.from_envelope_id) ids.add(tx.from_envelope_id);
+  if (tx.to_envelope_id) ids.add(tx.to_envelope_id);
+  const sorted = [...ids].sort();
+  const map = new Map();
+  for (const id of sorted) {
+    map.set(id, await lockEnvelope(client, id));
+  }
+  return map;
+}
+
+export async function updateTransaction(id, body) {
+  return withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, type, amount, envelope_id, from_envelope_id, to_envelope_id, notes, created_at
+       FROM transactions
+       WHERE id = $1
+       FOR UPDATE`,
+      [id]
+    );
+    if (!rows[0]) {
+      throw httpError(404, 'Transaction not found');
+    }
+    const tx = rows[0];
+
+    const amount =
+      body.amount !== undefined ? parseAmount(body.amount) : Number(tx.amount);
+    const notes =
+      body.notes !== undefined ? normalizeNotes(body.notes) : tx.notes;
+
+    const amountChanged = Number(amount) !== Number(tx.amount);
+
+    if (amountChanged) {
+      const envelopesById = await lockEnvelopesForTx(client, tx);
+      await reverseTxEffect(client, tx, envelopesById);
+      await applyTxEffect(
+        client,
+        tx.type,
+        amount,
+        tx.envelope_id,
+        tx.from_envelope_id,
+        tx.to_envelope_id,
+        envelopesById
+      );
+    }
+
+    const { rows: updated } = await client.query(
+      `UPDATE transactions
+       SET amount = $2, notes = $3
+       WHERE id = $1
+       RETURNING id, type, amount, envelope_id, from_envelope_id, to_envelope_id, notes, created_at`,
+      [id, amount, notes]
+    );
+    return mapTransaction(updated[0]);
+  });
+}
+
+export async function deleteTransaction(id) {
+  return withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, type, amount, envelope_id, from_envelope_id, to_envelope_id, notes, created_at
+       FROM transactions
+       WHERE id = $1
+       FOR UPDATE`,
+      [id]
+    );
+    if (!rows[0]) {
+      throw httpError(404, 'Transaction not found');
+    }
+    const tx = rows[0];
+    const envelopesById = await lockEnvelopesForTx(client, tx);
+    await reverseTxEffect(client, tx, envelopesById);
+    await client.query(`DELETE FROM transactions WHERE id = $1`, [id]);
+    return { ok: true };
+  });
+}

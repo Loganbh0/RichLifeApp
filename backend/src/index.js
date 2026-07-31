@@ -99,6 +99,22 @@ api.post(
   })
 );
 
+api.patch(
+  '/transactions/:id',
+  asyncHandler(async (req, res) => {
+    const tx = await queries.updateTransaction(req.params.id, req.body);
+    res.json(tx);
+  })
+);
+
+api.delete(
+  '/transactions/:id',
+  asyncHandler(async (req, res) => {
+    await queries.deleteTransaction(req.params.id);
+    res.status(204).end();
+  })
+);
+
 api.get(
   '/transactions',
   asyncHandler(async (req, res) => {

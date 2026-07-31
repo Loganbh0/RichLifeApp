@@ -34,3 +34,15 @@
 ## Free Render cold starts
 
 First request after idle can take 30–60+ seconds. Hit `/health` once before using the app.
+
+## Reset ledger data (optional)
+
+Deletes all transactions and sets every envelope balance to `0` (keeps categories/envelopes):
+
+```bash
+cd backend
+npm run wipe
+```
+
+Or paste [`supabase/scripts/wipe_ledger.sql`](supabase/scripts/wipe_ledger.sql) into the Supabase SQL Editor.
+

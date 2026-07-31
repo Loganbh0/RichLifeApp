@@ -372,6 +372,12 @@
   cursor: not-allowed;
 }
 
+.submit-btn--danger {
+  background: var(--surface);
+  color: var(--text);
+  border: 1.5px solid var(--text);
+}
+
 .error-banner {
   background: #111;
   color: #fff;
@@ -545,6 +551,20 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow);
   padding: 14px 16px;
+}
+
+.tx-card--btn {
+  display: block;
+  width: 100%;
+  border: none;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tx-card--btn:active {
+  transform: scale(0.995);
 }
 
 .tx-card__main {
