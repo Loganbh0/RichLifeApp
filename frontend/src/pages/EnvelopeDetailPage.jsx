@@ -2,39 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 import ProgressBar from '../components/ProgressBar.jsx';
+import EditTransactionModal from '../components/EditTransactionModal.jsx';
 import { formatMoney } from '../utils/money.js';
-
-function formatDate(iso) {
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  } catch {
-    return '';
-  }
-}
-
-function describeTx(tx, envelopeId) {
-  if (tx.type === 'income') {
-    return { label: 'Income', signed: Number(tx.amount) };
-  }
-  if (tx.type === 'expense') {
-    return { label: 'Expense', signed: -Number(tx.amount) };
-  }
-  // transfer
-  if (tx.fromEnvelopeId === envelopeId) {
-    return {
-      label: `To ${tx.toEnvelopeName || 'envelope'}`,
-      signed: -Number(tx.amount),
-    };
-  }
-  return {
-    label: `From ${tx.fromEnvelopeName || 'envelope'}`,
-    signed: Number(tx.amount),
-  };
-}
+import {
+  describeTxForEnvelope,
+  formatDate,
+} from '../utils/transactions.js';
 
 export default function EnvelopeDetailPage() {
   const { id } = useParams();
@@ -50,6 +23,7 @@ export default function EnvelopeDetailPage() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingTx, setEditingTx] = useState(null);
 
   const load = useCallback(async () => {
     setError('');
@@ -129,6 +103,11 @@ export default function EnvelopeDetailPage() {
     } finally {
       setDeleting(false);
     }
+  }
+
+  async function handleTxSaved() {
+    setEditingTx(null);
+    await load();
   }
 
   if (loading && !detail) {
@@ -287,28 +266,42 @@ export default function EnvelopeDetailPage() {
         ) : (
           <ul className="tx-list">
             {transactions.map((tx) => {
-              const { label, signed } = describeTx(tx, envelope.id);
+              const { label, signed } = describeTxForEnvelope(tx, envelope.id);
               return (
-                <li key={tx.id} className="tx-card">
-                  <div className="tx-card__main">
-                    <div>
-                      <div className="tx-card__label">{label}</div>
-                      <div className="tx-card__date muted">
-                        {formatDate(tx.createdAt)}
+                <li key={tx.id}>
+                  <button
+                    type="button"
+                    className="tx-card tx-card--btn"
+                    onClick={() => setEditingTx(tx)}
+                  >
+                    <div className="tx-card__main">
+                      <div>
+                        <div className="tx-card__label">{label}</div>
+                        <div className="tx-card__date muted">
+                          {formatDate(tx.createdAt)}
+                        </div>
+                      </div>
+                      <div className="tx-card__amount money">
+                        {signed >= 0 ? '+' : '−'}
+                        {formatMoney(Math.abs(signed))}
                       </div>
                     </div>
-                    <div className={`tx-card__amount money`}>
-                      {signed >= 0 ? '+' : '−'}
-                      {formatMoney(Math.abs(signed)).replace(/^\$/, '$')}
-                    </div>
-                  </div>
-                  {tx.notes && <p className="tx-card__notes">{tx.notes}</p>}
+                    {tx.notes && <p className="tx-card__notes">{tx.notes}</p>}
+                  </button>
                 </li>
               );
             })}
           </ul>
         )}
       </section>
+
+      {editingTx && (
+        <EditTransactionModal
+          transaction={editingTx}
+          onClose={() => setEditingTx(null)}
+          onSaved={handleTxSaved}
+        />
+      )}
     </main>
   );
 }

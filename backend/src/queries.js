@@ -420,13 +420,20 @@ export async function createTransaction(body) {
   });
 }
 
-export async function listTransactions(limit = 50) {
+export async function listTransactions(limit = 200) {
   const { rows } = await query(
-    `SELECT id, type, amount, envelope_id, from_envelope_id, to_envelope_id, notes, created_at
-     FROM transactions
-     ORDER BY created_at DESC
+    `SELECT t.id, t.type, t.amount, t.envelope_id, t.from_envelope_id, t.to_envelope_id,
+            t.notes, t.created_at,
+            env.name AS envelope_name,
+            f.name AS from_envelope_name,
+            dest.name AS to_envelope_name
+     FROM transactions t
+     LEFT JOIN envelopes env ON env.id = t.envelope_id
+     LEFT JOIN envelopes f ON f.id = t.from_envelope_id
+     LEFT JOIN envelopes dest ON dest.id = t.to_envelope_id
+     ORDER BY t.created_at DESC
      LIMIT $1`,
-    [Math.min(Number(limit) || 50, 200)]
+    [Math.min(Number(limit) || 200, 500)]
   );
   return rows.map(mapTransaction);
 }
@@ -501,17 +508,21 @@ async function applyTxEffect(client, type, amount, envelopeId, fromId, toId, env
   await setBalance(client, to.id, toNext);
 }
 
-async function lockEnvelopesForTx(client, tx) {
-  const ids = new Set();
-  if (tx.envelope_id) ids.add(tx.envelope_id);
-  if (tx.from_envelope_id) ids.add(tx.from_envelope_id);
-  if (tx.to_envelope_id) ids.add(tx.to_envelope_id);
-  const sorted = [...ids].sort();
+async function lockEnvelopeIds(client, ids) {
+  const sorted = [...new Set([...ids].filter(Boolean))].sort();
   const map = new Map();
   for (const id of sorted) {
     map.set(id, await lockEnvelope(client, id));
   }
   return map;
+}
+
+async function lockEnvelopesForTx(client, tx) {
+  return lockEnvelopeIds(client, [
+    tx.envelope_id,
+    tx.from_envelope_id,
+    tx.to_envelope_id,
+  ]);
 }
 
 export async function updateTransaction(id, body) {
@@ -533,28 +544,65 @@ export async function updateTransaction(id, body) {
     const notes =
       body.notes !== undefined ? normalizeNotes(body.notes) : tx.notes;
 
-    const amountChanged = Number(amount) !== Number(tx.amount);
+    let envelopeId = tx.envelope_id;
+    let fromId = tx.from_envelope_id;
+    let toId = tx.to_envelope_id;
 
-    if (amountChanged) {
-      const envelopesById = await lockEnvelopesForTx(client, tx);
+    if (tx.type === 'income' || tx.type === 'expense') {
+      if (body.envelopeId !== undefined) {
+        if (!body.envelopeId) {
+          throw httpError(400, 'envelopeId is required');
+        }
+        envelopeId = body.envelopeId;
+      }
+      fromId = null;
+      toId = null;
+    } else {
+      if (body.fromEnvelopeId !== undefined) fromId = body.fromEnvelopeId;
+      if (body.toEnvelopeId !== undefined) toId = body.toEnvelopeId;
+      if (!fromId || !toId) {
+        throw httpError(400, 'fromEnvelopeId and toEnvelopeId are required');
+      }
+      if (fromId === toId) {
+        throw httpError(400, 'Cannot transfer to the same envelope');
+      }
+      envelopeId = null;
+    }
+
+    const amountChanged = Number(amount) !== Number(tx.amount);
+    const refsChanged =
+      envelopeId !== tx.envelope_id ||
+      fromId !== tx.from_envelope_id ||
+      toId !== tx.to_envelope_id;
+
+    if (amountChanged || refsChanged) {
+      const envelopesById = await lockEnvelopeIds(client, [
+        tx.envelope_id,
+        tx.from_envelope_id,
+        tx.to_envelope_id,
+        envelopeId,
+        fromId,
+        toId,
+      ]);
       await reverseTxEffect(client, tx, envelopesById);
       await applyTxEffect(
         client,
         tx.type,
         amount,
-        tx.envelope_id,
-        tx.from_envelope_id,
-        tx.to_envelope_id,
+        envelopeId,
+        fromId,
+        toId,
         envelopesById
       );
     }
 
     const { rows: updated } = await client.query(
       `UPDATE transactions
-       SET amount = $2, notes = $3
+       SET amount = $2, notes = $3,
+           envelope_id = $4, from_envelope_id = $5, to_envelope_id = $6
        WHERE id = $1
        RETURNING id, type, amount, envelope_id, from_envelope_id, to_envelope_id, notes, created_at`,
-      [id, amount, notes]
+      [id, amount, notes, envelopeId, fromId, toId]
     );
     return mapTransaction(updated[0]);
   });

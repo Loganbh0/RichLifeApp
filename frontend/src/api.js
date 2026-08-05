@@ -36,6 +36,8 @@ export const api = {
     request(`/envelopes/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteEnvelope: (id) =>
     request(`/envelopes/${id}`, { method: 'DELETE' }),
+  listTransactions: (limit) =>
+    request(`/transactions${limit ? `?limit=${limit}` : ''}`),
   createTransaction: (body) =>
     request('/transactions', { method: 'POST', body: JSON.stringify(body) }),
   updateTransaction: (id, body) =>

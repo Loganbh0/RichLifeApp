@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
+import { formatMoney } from '../utils/money.js';
+import {
+  envelopeOptionLabel,
+  flattenBudgetEnvelopes,
+} from '../utils/transactions.js';
 
 const TYPES = [
   { id: 'income', label: 'Income' },
@@ -35,15 +40,23 @@ export default function AddTransactionPage() {
       .catch((err) => setError(err.message));
   }, []);
 
-  const allEnvelopes = useMemo(() => {
-    if (!budget) return [];
-    const list = [];
-    if (budget.unallocated) list.push(budget.unallocated);
-    for (const cat of budget.categories) {
-      list.push(...cat.envelopes);
-    }
-    return list;
-  }, [budget]);
+  const allEnvelopes = useMemo(
+    () => flattenBudgetEnvelopes(budget),
+    [budget]
+  );
+
+  const selectedEnvelope = useMemo(
+    () => allEnvelopes.find((e) => e.id === envelopeId),
+    [allEnvelopes, envelopeId]
+  );
+  const selectedFrom = useMemo(
+    () => allEnvelopes.find((e) => e.id === fromEnvelopeId),
+    [allEnvelopes, fromEnvelopeId]
+  );
+  const selectedTo = useMemo(
+    () => allEnvelopes.find((e) => e.id === toEnvelopeId),
+    [allEnvelopes, toEnvelopeId]
+  );
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -133,11 +146,15 @@ export default function AddTransactionPage() {
             >
               {allEnvelopes.map((env) => (
                 <option key={env.id} value={env.id}>
-                  {env.name}
-                  {env.isUnallocated ? ' (available)' : ''}
+                  {envelopeOptionLabel(env)}
                 </option>
               ))}
             </select>
+            {selectedEnvelope && (
+              <p className="field-hint muted">
+                Current: {formatMoney(selectedEnvelope.balance)}
+              </p>
+            )}
           </div>
         )}
 
@@ -153,10 +170,15 @@ export default function AddTransactionPage() {
               >
                 {allEnvelopes.map((env) => (
                   <option key={env.id} value={env.id}>
-                    {env.name}
+                    {envelopeOptionLabel(env)}
                   </option>
                 ))}
               </select>
+              {selectedFrom && (
+                <p className="field-hint muted">
+                  Current: {formatMoney(selectedFrom.balance)}
+                </p>
+              )}
             </div>
             <div className="field">
               <label htmlFor="to">To</label>
@@ -168,10 +190,15 @@ export default function AddTransactionPage() {
               >
                 {allEnvelopes.map((env) => (
                   <option key={env.id} value={env.id}>
-                    {env.name}
+                    {envelopeOptionLabel(env)}
                   </option>
                 ))}
               </select>
+              {selectedTo && (
+                <p className="field-hint muted">
+                  Current: {formatMoney(selectedTo.balance)}
+                </p>
+              )}
             </div>
           </>
         )}
